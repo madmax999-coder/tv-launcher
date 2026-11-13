@@ -91,6 +91,7 @@
     background: rgba(0,0,0,0.3); border: 0.25vw solid transparent; box-sizing: border-box;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     outline: none; transition: transform 0.2s; }
+  .tile { cursor: pointer; }
   .tile:focus { border-color: #fff; transform: scale(1.12); box-shadow: 0 0.8vw 2vw rgba(0,0,0,0.35); }
   .icon { font-size: 3.4vw; line-height: 1; }
   .icon svg { width: 4vw; height: 4vw; display: block; filter: drop-shadow(0 0.15vw 0.4vw rgba(0,0,0,0.35)); }
@@ -473,6 +474,9 @@ APPS.forEach(function (app) {
   else t.firstChild.textContent = app.icon;
   if (app.tint) t.style.background = "linear-gradient(160deg, rgba(" + app.tint + ",0.55), rgba(" + app.tint + ",0.18))";
   t.lastChild.textContent = app.name;
+  // the TV browser may only give a mouse pointer, no arrow keys: clicks and hover work too
+  t.onclick = function (e) { e.stopPropagation(); window.location.href = app.url; };
+  t.onmouseover = function () { focus(tiles.indexOf(t)); };
   dock.appendChild(t);
   tiles.push(t);
 });
@@ -505,6 +509,9 @@ document.addEventListener("keydown", function (e) {
     focus(next(cur, key, tiles.length));
   }
 });
+
+// a click anywhere outside the dock switches the scene
+document.addEventListener("click", function () { nextScene(); });
 
 focus(0);
 </script>

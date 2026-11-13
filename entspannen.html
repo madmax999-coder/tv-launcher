@@ -13,6 +13,10 @@
   #hud { position: fixed; left: 5vw; bottom: 6vh; text-shadow: 0 0.2vw 1vw rgba(0,0,0,0.7); transition: opacity 1s; }
   #name { font-size: 3vw; font-weight: 300; }
   #help { font-size: 1.3vw; opacity: 0.8; margin-top: 0.8vw; }
+  #bar { margin-top: 1.4vw; }
+  #bar button { font: inherit; font-size: 1.5vw; color: #fff; background: rgba(0,0,0,0.45); border: 0.15vw solid rgba(255,255,255,0.4);
+    border-radius: 0.8vw; padding: 0.7vw 1.4vw; margin-right: 0.8vw; cursor: pointer; }
+  #bar button:hover { background: rgba(255,255,255,0.25); border-color: #fff; }
   #vol { position: fixed; right: 5vw; bottom: 6vh; font-size: 1.4vw; opacity: 0; transition: opacity 0.4s;
     background: rgba(0,0,0,0.45); padding: 0.6vw 1.2vw; border-radius: 0.8vw; }
 </style>
@@ -20,7 +24,8 @@
 <body>
 <video id="v0" muted loop playsinline></video><video id="v1" muted loop playsinline></video>
 <canvas id="rain"></canvas>
-<div id="hud"><div id="name"></div><div id="help">OK: Ton an/aus · ◀ ▶ Szene · ▲ ▼ Lautstärke · Zurück: Startseite</div></div>
+<div id="hud"><div id="name"></div><div id="help">OK: Ton an/aus · ◀ ▶ Szene · ▲ ▼ Lautstärke · Zurück: Startseite</div>
+  <div id="bar"><button id="bPrev">◀ Szene</button><button id="bSound">Ton an</button><button id="bNext">Szene ▶</button><button id="bHome">Startseite</button></div></div>
 <div id="vol"></div>
 <script>
 // Relax screen: a looping nature video with its sound made live in the browser (Web Audio), so it
@@ -163,6 +168,15 @@
     else { hud(); return; }
     e.preventDefault();
   });
+
+  // the TV browser may only give a mouse pointer: buttons, and moving the pointer brings them back
+  function soundLabel() { document.getElementById("bSound").textContent = audio && audio.state === "running" ? "Ton aus" : "Ton an"; }
+  document.getElementById("bPrev").onclick = function () { showScene(cur - 1); };
+  document.getElementById("bNext").onclick = function () { showScene(cur + 1); };
+  document.getElementById("bSound").onclick = function () { toggleSound(); setTimeout(soundLabel, 300); };
+  document.getElementById("bHome").onclick = function () { location.href = "./"; };
+  document.addEventListener("mousemove", function () { hud(); });
+  document.addEventListener("keydown", function () { setTimeout(soundLabel, 300); });
 
   showScene(cur);
 })();
