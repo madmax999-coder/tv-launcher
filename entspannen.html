@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entspannen</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+  video, canvas { position: fixed; left: 0; top: 0; width: 100%; height: 100%; }
+  video { object-fit: cover; opacity: 0; transition: opacity 1.5s; }
+  video.on { opacity: 1; }
+  #hud { position: fixed; left: 5vw; bottom: 6vh; text-shadow: 0 0.2vw 1vw rgba(0,0,0,0.7); transition: opacity 1s; }
+  #name { font-size: 3vw; font-weight: 300; }
+  #help { font-size: 1.3vw; opacity: 0.8; margin-top: 0.8vw; }
+  #vol { position: fixed; right: 5vw; bottom: 6vh; font-size: 1.4vw; opacity: 0; transition: opacity 0.4s;
+    background: rgba(0,0,0,0.45); padding: 0.6vw 1.2vw; border-radius: 0.8vw; }
+</style>
+</head>
+<body>
+<video id="v0" muted loop playsinline></video><video id="v1" muted loop playsinline></video>
+<canvas id="rain"></canvas>
+<div id="hud"><div id="name"></div><div id="help">OK: Ton an/aus · ◀ ▶ Szene · ▲ ▼ Lautstärke · Zurück: Startseite</div></div>
+<div id="vol"></div>
+<script>
+// Relax screen: a looping nature video with its sound made live in the browser (Web Audio), so it
+// never repeats and needs no sound files. Videos from Pexels (free licence).
+(function () {
+  var V = "https://videos.pexels.com/video-files/";
+  var SCENES = [
+    { name: "Kaminfeuer", src: V + "15264411/15264411-hd_1920_1080_30fps.mp4", sound: "fire", rain: 0 },
+    { name: "Regen im Wald", src: V + "9353501/9353501-hd_1920_1080_25fps.mp4", sound: "forest", rain: 0 },
+    { name: "Regen am Zelt", src: V + "5994906/5994906-hd_2048_1080_25fps.mp4", sound: "tent", rain: 1 }
+  ];
+  var cur = 0, front = 0, vids = [document.getElementById("v0"), document.getElementById("v1")];
+  var vol = 0.7, audio = null, master = null, voice = null, hudT, volT;
+  try { cur = parseInt(localStorage.getItem("relax"), 10) || 0; vol = parseFloat(localStorage.getItem("relaxVol")) || vol; } catch (e) {}
+
+  function hud() {
+    var h = document.getElementById("hud");
+    document.getElementById("name").textContent = SCENES[cur].name;
+    h.style.opacity = 1; clearTimeout(hudT); hudT = setTimeout(function () { h.style.opacity = 0; }, 5000);
+  }
+
+  function showScene(i) {
+    cur = (i + SCENES.length) % SCENES.length;
+    try { localStorage.setItem("relax", cur); } catch (e) {}
+    var back = vids[1 - front], prev = vids[front];
+    back.src = SCENES[cur].src;
+    back.oncanplay = function () { back.oncanplay = null; back.className = "on"; prev.className = "";
+      setTimeout(function () { prev.pause(); prev.removeAttribute("src"); try { prev.load(); } catch (e) {} }, 1600); };
+    var p = back.play(); if (p && p.catch) p.catch(function () {});
+    front = 1 - front;
+    if (audio) startSound();
+    hud();
+  }
+
+  // ---------------- sound ----------------
+  function noiseBuffer(ctx, kind) { // 4 s of white or brown noise, looped
+    var n = ctx.sampleRate * 4, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0), last = 0;
+    for (var i = 0; i < n; i++) {
+      var w = Math.random() * 2 - 1;
+      if (kind === "brown") { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
+    }
+    return b;
+  }
+  function loop(buf, out) { var s = audio.createBufferSource(); s.buffer = buf; s.loop = true; s.connect(out); s.start(); return s; }
+  function filter(type, f, q) { var x = audio.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; }
+  function gain(v) { var g = audio.createGain(); g.gain.value = v; return g; }
+
+  var WHITE, BROWN;
+  // a short burst of noise through a band filter: a crackle, a drop, a tap on the tent
+  function burst(out, f, q, len, level) {
+    var s = audio.createBufferSource(), bp = filter("bandpass", f, q), g = gain(0), t = audio.currentTime;
+    s.buffer = WHITE; s.connect(bp); bp.connect(g); g.connect(out);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    s.start(t, Math.random() * 3.5); s.stop(t + len + 0.05);
+  }
+
+  function makeVoice(kind) { // returns { out, stop }
+    var out = gain(0), stops = [], timers = [];
+    function every(min, max, fn) { var go = function () { fn(); timers.push(setTimeout(go, min + Math.random() * (max - min))); }; timers.push(setTimeout(go, min)); }
+    if (kind === "fire") {
+      var rumble = filter("lowpass", 260), rg = gain(0.55); rumble.connect(rg); rg.connect(out); stops.push(loop(BROWN, rumble));
+      var hiss = filter("bandpass", 3500, 0.6), hg = gain(0.025); hiss.connect(hg); hg.connect(out); stops.push(loop(WHITE, hiss));
+      every(400, 1200, function () { rg.gain.setTargetAtTime(0.4 + Math.random() * 0.3, audio.currentTime, 0.4); }); // the flames breathe
+      every(40, 260, function () { burst(out, 1800 + Math.random() * 3000, 1.5, 0.01 + Math.random() * 0.03, 0.15 + Math.random() * 0.35); }); // crackles
+      every(2500, 9000, function () { // now and then a pop and a little shower of sparks
+        burst(out, 900 + Math.random() * 600, 2, 0.06, 0.6);
+        for (var k = 0; k < 6; k++) (function (d) { timers.push(setTimeout(function () { burst(out, 2500 + Math.random() * 3000, 2, 0.012, 0.25); }, d)); })(30 + k * (20 + Math.random() * 40));
+      });
+    } else {
+      var tent = kind === "tent";
+      var body = filter("lowpass", tent ? 900 : 5000), bg = gain(tent ? 0.5 : 0.32); body.connect(bg); bg.connect(out); stops.push(loop(WHITE, body));
+      var low = filter("lowpass", 400), lg = gain(tent ? 0.35 : 0.25); low.connect(lg); lg.connect(out); stops.push(loop(BROWN, low));
+      every(2000, 5000, function () { bg.gain.setTargetAtTime((tent ? 0.42 : 0.26) + Math.random() * 0.12, audio.currentTime, 1.5); }); // gusts
+      if (tent) every(15, 90, function () { burst(out, 1400 + Math.random() * 1600, 4, 0.03 + Math.random() * 0.03, 0.12 + Math.random() * 0.25); }); // drops on the fabric
+      else every(120, 700, function () { burst(out, 3000 + Math.random() * 3000, 3, 0.02, 0.08 + Math.random() * 0.15); }); // drips from the leaves
+    }
+    out.connect(master);
+    out.gain.setTargetAtTime(1, audio.currentTime, 0.8); // fade in
+    return { stop: function () {
+      timers.forEach(clearTimeout); timers = [];
+      out.gain.setTargetAtTime(0, audio.currentTime, 0.5);
+      setTimeout(function () { stops.forEach(function (s) { try { s.stop(); } catch (e) {} }); out.disconnect(); }, 2500);
+    } };
+  }
+
+  function startSound() {
+    if (voice) voice.stop();
+    voice = makeVoice(SCENES[cur].sound);
+  }
+  function toggleSound() { // the browser only allows sound after a key press, so OK switches it on
+    if (!audio) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audio = new AC(); master = gain(vol); master.connect(audio.destination);
+      WHITE = noiseBuffer(audio, "white"); BROWN = noiseBuffer(audio, "brown");
+      startSound(); return;
+    }
+    if (audio.state === "running") audio.suspend(); else audio.resume();
+  }
+  function setVol(d) {
+    vol = Math.max(0, Math.min(1, Math.round((vol + d) * 10) / 10));
+    try { localStorage.setItem("relaxVol", vol); } catch (e) {}
+    if (master) master.gain.setTargetAtTime(vol, audio.currentTime, 0.1);
+    var el = document.getElementById("vol"); el.textContent = "Lautstärke " + Math.round(vol * 100) + " %"; el.style.opacity = 1;
+    clearTimeout(volT); volT = setTimeout(function () { el.style.opacity = 0; }, 1500);
+  }
+
+  // ---------------- rain over the tent ----------------
+  var cv = document.getElementById("rain"), ctx = cv.getContext("2d"), drops = [], last = 0, i;
+  for (i = 0; i < 220; i++) drops.push([Math.random(), Math.random(), 0.6 + Math.random() * 0.8]);
+  function resize() { cv.width = innerWidth; cv.height = innerHeight; }
+  window.addEventListener("resize", resize); resize();
+  function frame(t) {
+    raf(frame);
+    if (t - last < 40) return;
+    last = t;
+    var W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    if (!SCENES[cur].rain) return;
+    ctx.strokeStyle = "rgba(200,215,235,0.28)"; ctx.lineWidth = 1.3; ctx.beginPath();
+    for (i = 0; i < drops.length; i++) {
+      var p = drops[i], x = ((p[0] + t * 0.00004) % 1) * W, y = ((p[1] + t * 0.0012 * p[2]) % 1) * H;
+      ctx.moveTo(x, y); ctx.lineTo(x - 4, y + H * 0.04 * p[2]);
+    }
+    ctx.stroke();
+  }
+  var raf = window.requestAnimationFrame || function (f) { setTimeout(function () { f(Date.now()); }, 40); };
+  raf(frame);
+
+  // ---------------- remote ----------------
+  var KEYS = { 37: "ArrowLeft", 38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown" };
+  document.addEventListener("keydown", function (e) {
+    var key = KEYS[e.keyCode] || e.key; // old TV Chromium may only set keyCode
+    if (key === "Enter" || e.keyCode === 13) toggleSound();
+    else if (key === "ArrowRight") showScene(cur + 1);
+    else if (key === "ArrowLeft") showScene(cur - 1);
+    else if (key === "ArrowUp") setVol(0.1);
+    else if (key === "ArrowDown") setVol(-0.1);
+    else if (key === "Backspace" || key === "GoBack" || e.keyCode === 8 || e.keyCode === 461) { location.href = "./"; }
+    else { hud(); return; }
+    e.preventDefault();
+  });
+
+  showScene(cur);
+})();
+</script>
+</body>
+</html>
