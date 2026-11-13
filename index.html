@@ -4,92 +4,132 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Launcher</title>
+<!--
+  Scenes, glass clock, ambient weather and sun grading are taken from couch-tv by Seagey
+  (https://github.com/Seagey/couch-tv), MIT License, Copyright (c) 2026 Seagey. See LICENSE-couch-tv.txt.
+  Scene pictures: made for couch-tv, free to use (backgrounds/CREDITS.md there).
+-->
 <style>
+  @font-face { font-family: "Antonio"; font-weight: 300; font-display: block;
+    src: url(https://cdn.jsdelivr.net/gh/Seagey/couch-tv@c787985ef2aec9e1d95c4b5eaf2d11c5541bed5f/tv-home/web/fonts/antonio-latin-300.woff2) format("woff2"); }
+  html { font-size: calc(100vw / 120); }
   html, body { margin: 0; height: 100%; background: #0b0b0c; color: #fff;
     font-family: "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
-  .scene { position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-    background-size: cover; background-position: center; opacity: 0; transition: opacity 3s; }
+
+  /* --- from couch-tv app.css (Night look) --- */
+  .scenes { position: fixed; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; }
+  .scene { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; opacity: 0; transition: opacity 1600ms ease-in-out; }
+  .scene.ready { display: block; will-change: opacity; }
   .scene.on { opacity: 1; }
-  #shade { position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0) 35%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.5)); }
-  #fx { position: fixed; left: 0; top: 0; width: 100%; height: 100%; }
-  #info { position: fixed; left: 5vw; top: 5vh; text-shadow: 0 0.2vw 1vw rgba(0,0,0,0.5); }
-  #clock { font-size: 10vw; font-weight: 200; line-height: 1; letter-spacing: -0.2vw; }
-  #line { font-size: 1.8vw; margin-top: 1vw; opacity: 0.9; }
+  .scene .sbg, .scene .fg { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  .scene .shade { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+  .gclock { position: absolute; left: 0; right: 0; top: 9.375rem; text-align: center; white-space: nowrap;
+    font-family: "Antonio", "Arial Narrow", sans-serif; font-weight: 300; font-size: 25rem; line-height: 0.82; letter-spacing: -0.02em;
+    filter: drop-shadow(0 0.375rem 1.75rem rgba(0, 0, 0, 0.16)); }
+  .gclock .fill { display: block; padding: 0.2em 0; margin: -0.2em 0; color: transparent;
+    -webkit-background-clip: text; background-clip: text; background-size: 100vw 100vh; background-repeat: no-repeat; }
+  .gclock .edge { display: none; }
+  .gclock .rim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; color: rgba(255, 255, 255, 0.1); -webkit-text-stroke: 0.09rem rgba(255, 255, 255, 0.55); }
+  .gclock .sheen { position: absolute; top: 0; right: 0; bottom: 0; left: 0; color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.22) 100%); }
+  .scrim { position: fixed; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.5) 100%); }
+  .s-night .sbg, .s-night .fg { filter: brightness(0.86); }
+  .s-night .gclock .fill { filter: brightness(1.15) saturate(1.2); opacity: 0.9; }
+  .s-night .gclock .rim { color: rgba(255, 200, 215, 0.06); -webkit-text-stroke-color: rgba(255, 215, 225, 0.5); }
+  .s-golden .gclock { top: 9.5rem; font-size: 24.375rem; }
+  .s-water .shade { background: linear-gradient(180deg, rgba(0, 12, 24, 0.42) 0%, rgba(0, 12, 24, 0.12) 40%, rgba(0, 0, 0, 0) 52%, rgba(0, 20, 40, 0.5) 100%); }
+  .s-water .gclock { top: 16.75rem; font-size: 26.25rem; filter: drop-shadow(0 0.5rem 1.875rem rgba(0, 20, 40, 0.35)); }
+  .s-water .gclock.under { filter: blur(0.1375rem); opacity: 0.78; transform: translateX(0.3125rem); }
+  .s-water .gclock.under .fill { filter: hue-rotate(-8deg) saturate(1.4); }
+  .s-water .gclock.under .rim { -webkit-text-stroke-color: rgba(170, 240, 255, 0.5); }
+  .s-fog .gclock { left: 6rem; right: auto; top: 10.75rem; font-size: 29.375rem; text-align: left; filter: none; }
+  .s-fog .gclock .fill { filter: brightness(0.46) saturate(0.8) contrast(1.1); opacity: 0.8; }
+  .s-fog .gclock .rim { color: transparent; -webkit-text-stroke-color: rgba(255, 255, 255, 0.6); }
+  .s-fog .gclock .sheen { display: none; }
+  .s-dawn .shade { background: linear-gradient(180deg, rgba(50, 28, 12, 0.42) 0%, rgba(50, 28, 12, 0) 55%); }
+  .s-dawn .gclock { top: 14.375rem; filter: drop-shadow(0 0.5rem 2.125rem rgba(60, 30, 10, 0.3)); }
+  .date { position: fixed; left: 0; right: 0; top: 6rem; margin: 0; text-align: center; white-space: nowrap;
+    font-size: 2.125rem; line-height: 2.5rem; font-weight: 500; color: #fff;
+    text-shadow: 0 0.125rem 1.125rem rgba(0, 0, 0, 0.25); transition: opacity 600ms ease-in-out; }
+  .date .wx { color: rgba(255, 255, 255, 0.78); font-weight: 400; }
+  .date.swap { opacity: 0; }
+  .scene-night .date { color: rgba(255, 232, 238, 0.92); }
+  .scene-night .date .wx { color: rgba(255, 232, 238, 0.78); }
+  .scene-golden .date { top: 6.625rem; }
+  .scene-water .date { top: 13.5rem; }
+  .scene-dawn .date { top: 11rem; }
+  .scene-fog .date { left: 6.5rem; right: auto; top: 7.25rem; text-align: left; color: #16201d; text-shadow: none; }
+  .scene-fog .date .wx { color: rgba(22, 32, 29, 0.72); }
+  .ambient-lighting { position: fixed; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; opacity: 0;
+    transition: opacity 2.5s cubic-bezier(0.4, 0, 0.2, 1), background 2.5s cubic-bezier(0.4, 0, 0.2, 1); }
+  .ambient-lighting.has-weather-tint { opacity: 1 !important; }
+  .ambient-lighting.wx-rain-tint { background: linear-gradient(180deg, rgba(16, 26, 42, 0.18) 0%, rgba(10, 18, 30, 0.28) 100%) !important; }
+  .ambient-lighting.wx-snow-tint { background: linear-gradient(180deg, rgba(220, 235, 255, 0.10) 0%, rgba(180, 205, 235, 0.16) 100%) !important; }
+  .ambient-lighting.wx-fog-tint { background: linear-gradient(180deg, rgba(200, 215, 225, 0.18) 0%, rgba(185, 200, 215, 0.25) 100%) !important; }
+  .ambient-lighting.wx-storm-tint { background: linear-gradient(180deg, rgba(12, 16, 28, 0.28) 0%, rgba(8, 10, 20, 0.38) 100%) !important; }
+  /* added: drifting sky copy (under the cut-out), the sun canvas, motion canvas and sun light/shadow */
+  .scene .skycv { position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    -webkit-animation: drift 140s ease-in-out infinite alternate; animation: drift 140s ease-in-out infinite alternate; }
+  @-webkit-keyframes drift { from { -webkit-transform: scale(1.05) translateX(-2.2%); } to { -webkit-transform: scale(1.05) translateX(2.2%); } }
+  @keyframes drift { from { transform: scale(1.05) translateX(-2.2%); } to { transform: scale(1.05) translateX(2.2%); } }
+  .scene .landtint { position: absolute; top: 0; left: 0; width: 100%; height: 100%; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; mix-blend-mode: multiply; }
+  .live .scene .landtint { transition: background 15s linear; }
+  .live .scene .fg { transition: filter 15s linear; } /* only after the first paint, so the right light is there at once */
+  #toast { position: fixed; right: 5vw; top: 6vh; font-size: 1.6vw; padding: 0.8vw 1.6vw; border-radius: 1vw; background: rgba(0,0,0,0.45); opacity: 0; transition: opacity 0.4s; }
+  .scene .suncv, .motion, .sunlight { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .motion, .sunlight { position: fixed; }
+  .sunlight { transition: background 15s linear; }
+  .weather-canvas { position: fixed; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* --- the app dock --- */
   #dock { position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%);
     display: flex; padding: 1.2vw; border-radius: 2vw; white-space: nowrap;
-    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25);
-    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+    background: rgba(30, 20, 28, 0.32); -webkit-backdrop-filter: blur(1.75rem) saturate(170%); backdrop-filter: blur(1.75rem) saturate(170%);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 210, 220, 0.16), 0 1.5rem 3.75rem rgba(0, 0, 0, 0.28); }
   .tile { width: 9vw; height: 9vw; margin: 0 0.6vw; border-radius: 1.4vw;
-    background: rgba(0,0,0,0.35); border: 0.25vw solid transparent; box-sizing: border-box;
+    background: rgba(0,0,0,0.3); border: 0.25vw solid transparent; box-sizing: border-box;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     outline: none; transition: transform 0.2s; }
-  .tile:focus { border-color: #fff; background: rgba(255,255,255,0.25); transform: scale(1.12); }
+  .tile:focus { border-color: #fff; transform: scale(1.12); box-shadow: 0 0.8vw 2vw rgba(0,0,0,0.35); }
   .icon { font-size: 3.4vw; line-height: 1; }
+  .icon svg { width: 4vw; height: 4vw; display: block; filter: drop-shadow(0 0.15vw 0.4vw rgba(0,0,0,0.35)); }
   .name { font-size: 1vw; margin-top: 0.6vw; }
 </style>
 </head>
 <body>
-<div class="scene" id="s0"></div><div class="scene" id="s1"></div>
-<div id="shade"></div>
-<canvas id="fx"></canvas>
-<div id="info"><div id="clock"></div><div id="line"></div></div>
+<div class="scenes" id="scenes"></div>
+<div class="ambient-lighting" id="ambient-lighting"></div>
+<canvas class="motion" id="motion"></canvas>
+<div class="sunlight" id="sunlight"></div>
+<canvas class="weather-canvas" id="weather-canvas"></canvas>
+<div class="scrim"></div>
+<p class="date" id="date"></p>
+<div id="toast"></div>
 <div id="dock"></div>
+<script src="https://cdn.jsdelivr.net/gh/Seagey/couch-tv@c787985ef2aec9e1d95c4b5eaf2d11c5541bed5f/tv-home/web/ambient-weather.js"></script>
 <script>
-// Photo scenes that follow Barcelona's real sun position and weather, rain/snow drawn on top.
-// Preview: ?h=20.5 (hour) and/or ?w=clear|clouds|rain|snow|storm|fog
+// Scenes, glass clock and weather effects from couch-tv (MIT, see the note at the top). Here one scene
+// stays on all day and follows Barcelona's real sun and weather: the sky is recoloured live (the
+// photo's clouds kept), the land is lit for the hour, the sun moves and sets behind the scenery.
+// Remote: Arrow Up switches between the two scenes (remembered on this TV).
+// Preview: ?h=18.5 (hour)  ?scene=dawn|golden  ?test_wx=63 (weather code)  ?cloud=40 (%)  ?birds=1
 (function () {
   var LAT = 41.39, LON = 2.17, RAD = Math.PI / 180;
-  // Unsplash photos (free licence, hotlinked as Unsplash asks)
-  var IMG = "https://images.unsplash.com/", Q = "?w=1920&q=80&fm=jpg&fit=crop";
-  var SCENES = { sunrise: "photo-1753372623416-bc8bf85eab06", day: "photo-1790516476371-ae44e1b2195d",
-    sunset: "photo-1713545717410-fdb2de7ce677", night: "photo-1569266318139-f96482583203",
-    grey: "photo-1632090255904-d3d840ceedc2" };
+  var BG = "https://cdn.jsdelivr.net/gh/Seagey/couch-tv@c787985ef2aec9e1d95c4b5eaf2d11c5541bed5f/tv-home/web/backgrounds/";
+  // horizon: where the sun sets (share of height); mist: band where fog drifts
+  var SCENES = [
+    { id: "dawn", name: "Regenwald", horizon: 0.5, mist: [0.55, 0.82] },
+    { id: "golden", name: "Vulkan", horizon: 0.53, mist: [0.5, 0.66] }
+  ];
   var q = {}; location.search.replace(/[?&](\w+)=([^&]*)/g, function (_, k, v) { q[k] = v; });
-  var wx = { code: 0, cloud: 0, rain: 0, snow: 0, storm: false, temp: null };
-
-  function sunElev(d) { // degrees; ignores equation of time (max ~4° error)
-    var day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 0)) / 864e5;
-    var decl = -23.44 * RAD * Math.cos(2 * Math.PI / 365 * (day + 10));
-    var ha = (d.getUTCHours() + d.getUTCMinutes() / 60 + LON / 15 - 12) * 15 * RAD;
-    return Math.asin(Math.sin(LAT * RAD) * Math.sin(decl) + Math.cos(LAT * RAD) * Math.cos(decl) * Math.cos(ha)) / RAD;
-  }
-  console.assert(sunElev(new Date(Date.UTC(2026, 5, 21, 11, 51))) > 70 &&
-    Math.abs(sunElev(new Date(Date.UTC(2026, 11, 21, 11, 51))) - 25) < 3 &&
-    sunElev(new Date(Date.UTC(2026, 5, 21, 23, 50))) < -20, "sunElev");
-
-  function pickScene(e, hour, w) {
-    if (e < -6) return "night";
-    if (e < 8) return hour < 13 ? "sunrise" : "sunset";
-    return w.cloud >= 0.7 || w.rain || w.snow ? "grey" : "day";
-  }
-  console.assert(pickScene(-10, 23, wx) === "night" && pickScene(3, 8, wx) === "sunrise" &&
-    pickScene(3, 18, wx) === "sunset" && pickScene(30, 12, wx) === "day" &&
-    pickScene(30, 12, { cloud: 0.2, rain: 1 }) === "grey", "pickScene");
-
-  var WORDS = [[0, "Klar"], [2, "Leicht bewölkt"], [3, "Bewölkt"], [48, "Nebel"], [57, "Nieselregen"],
-    [67, "Regen"], [77, "Schnee"], [82, "Regenschauer"], [86, "Schneeschauer"], [99, "Gewitter"]];
-  function word(code) { for (var i = 0; i < WORDS.length; i++) if (code <= WORDS[i][0]) return WORDS[i][1]; return ""; }
-
-  function setWeather(code, cloud, precip, temp) { // WMO weather codes from Open-Meteo
-    wx.code = code; wx.cloud = cloud / 100; wx.temp = temp;
-    wx.rain = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95 ? Math.min(1, 0.4 + precip / 4) : 0;
-    wx.snow = (code >= 71 && code <= 77) || code === 85 || code === 86 ? 1 : 0;
-    wx.storm = code >= 95;
-    tick();
-  }
-  var DEMO = { clear: [0, 0, 0, 22], clouds: [3, 85, 0, 17], rain: [63, 100, 2, 14], snow: [73, 100, 0, -1],
-    storm: [95, 100, 4, 19], fog: [45, 60, 0, 12] };
-  function loadWeather() {
-    var x = new XMLHttpRequest();
-    x.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
-      "&current=weather_code,cloud_cover,precipitation,temperature_2m");
-    x.onload = function () {
-      try { var c = JSON.parse(x.responseText).current;
-        setWeather(c.weather_code, c.cloud_cover, c.precipitation, c.temperature_2m); } catch (e) {}
-    };
-    x.send(); // on failure: scene by time only, no weather text
-  }
+  var wx = { code: null, temp: null, cloud: 0 }, scene = -1, els = [], shownTime = "";
+  var sun = { x: 0, y: 0, alt: -90, vis: 0, low: 0, night: 0 };
+  function $(id) { return document.getElementById(id); }
+  function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function smooth(a, b, v) { var t = clamp((v - a) / (b - a)); return t * t * (3 - 2 * t); }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function rgb(c, al) { return "rgba(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + "," + (al === undefined ? 1 : al) + ")"; }
 
   function now() {
     var d = new Date();
@@ -97,63 +137,330 @@
     return d;
   }
 
+  function solarPos(lat, lon, d) { // couch-tv's altitude (with the equation of time), plus the azimuth
+    var start = new Date(Date.UTC(d.getUTCFullYear(), 0, 0));
+    var dayOfYear = Math.floor((d - start) / 86400000);
+    var b = (360 / 365.25) * (dayOfYear - 81) * RAD;
+    var eot = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+    var decl = 23.45 * Math.sin(b) * RAD;
+    var utcHours = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+    var solarTime = (utcHours + (lon / 15) + (eot / 60) + 24) % 24;
+    var H = (solarTime - 12) * 15 * RAD, la = lat * RAD;
+    var sinAlt = Math.sin(la) * Math.sin(decl) + Math.cos(la) * Math.cos(decl) * Math.cos(H);
+    var az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(la) - Math.tan(decl) * Math.cos(la)) / RAD + 180;
+    return { alt: Math.asin(Math.max(-1, Math.min(1, sinAlt))) / RAD, hourAngle: H / RAD, az: az };
+  }
+  (function () { // solar noon in Barcelona is about 12:36 local in mid November (11:36 UTC): sun due south
+    var p = solarPos(LAT, LON, new Date(Date.UTC(2026, 10, 13, 11, 36))), m = solarPos(LAT, LON, new Date(Date.UTC(2026, 10, 13, 8, 0)));
+    console.assert(Math.abs(p.az - 180) < 3 && Math.abs(p.alt - 30) < 3 && m.az < 140 && m.alt > 0 && m.alt < 15, "solarPos");
+  })();
+
+  // we look south: sunrise on the left, sunset on the right, a natural arc across the sky
+  function sunXY(pos, horizon) {
+    var x = 0.5 + (pos.az - 180) / 150;
+    var y = pos.alt >= 0 ? horizon * (1 - 0.92 * Math.pow(Math.sin(pos.alt * RAD), 0.7)) : horizon - pos.alt * 0.02;
+    return [x, y];
+  }
+  console.assert(sunXY({ az: 180, alt: 30 }, 0.5)[1] < 0.3 && sunXY({ az: 240, alt: 0 }, 0.5)[0] > 0.85 &&
+    sunXY({ az: 120, alt: -5 }, 0.5)[1] > 0.5, "sunXY");
+
+  // the sky's colour for a sun altitude: [altitude, zenith, horizon]
+  var SKY = [[-14, [10, 16, 44], [24, 34, 74]], [-7, [20, 28, 70], [92, 76, 128]], [-2, [52, 60, 118], [236, 128, 96]],
+             [4, [70, 98, 160], [250, 176, 118]], [12, [56, 112, 190], [196, 214, 230]], [30, [40, 104, 196], [168, 204, 236]]];
+  function skyAt(alt) {
+    if (alt <= SKY[0][0]) return [SKY[0][1], SKY[0][2]];
+    for (var i = 1; i < SKY.length; i++) if (alt <= SKY[i][0]) {
+      var t = (alt - SKY[i - 1][0]) / (SKY[i][0] - SKY[i - 1][0]);
+      return [mix(SKY[i - 1][1], SKY[i][1], t), mix(SKY[i - 1][2], SKY[i][2], t)];
+    }
+    return [SKY[5][1], SKY[5][2]];
+  }
+  console.assert(skyAt(60)[0][2] > 150 && skyAt(-20)[0][2] < 60 && skyAt(1)[1][0] > 200, "skyAt");
+
+  // how the land is lit: brightness, saturation, warmth, hue shift (cancels the photo's own warm cast by day)
+  function landAt(alt, cloud) {
+    var day = smooth(-10, 6, alt), high = smooth(8, 25, alt), golden = clamp(1 - Math.abs(alt - 3) / 9);
+    return { b: (0.3 + 0.72 * day) * (1 - 0.15 * cloud), s: (0.5 + 0.55 * day) * (1 - 0.35 * cloud),
+      warm: 0.25 * golden * (1 - cloud), hue: -10 * high, night: 1 - day, golden: golden * (1 - cloud), high: high * (1 - 0.5 * cloud) };
+  }
+  console.assert(landAt(-20, 0).b < 0.4 && landAt(40, 0).b > 0.95 && landAt(3, 0).warm > 0.2 && landAt(3, 1).warm === 0, "landAt");
+
+  function build() {
+    var box = $("scenes");
+    els = SCENES.map(function (s) {
+      var el = document.createElement("div");
+      el.className = "scene s-" + s.id;
+      el.innerHTML = '<img class="sbg" alt=""><canvas class="skycv"></canvas><canvas class="suncv"></canvas><div class="shade"></div>' +
+        '<div class="gclock"></div><img class="fg" alt="" crossorigin="anonymous"><div class="landtint"></div>';
+      box.appendChild(el);
+      return el;
+    });
+  }
+
+  function ready(i) {
+    var s = SCENES[i], el = els[i];
+    if (!el.classList.contains("ready")) {
+      var bg = el.querySelector(".sbg");
+      bg.crossOrigin = "anonymous"; bg.onload = function () { drawSky(); };
+      bg.src = BG + "scene-" + s.id + ".jpg";
+      el.querySelector(".fg").src = BG + "scene-" + s.id + "-fg.webp";
+      var m = "url(" + BG + "scene-" + s.id + "-fg.webp)", lt = el.querySelector(".landtint"); // the tint only on the land
+      lt.style.webkitMaskImage = m; lt.style.maskImage = m;
+      el.classList.add("ready");
+    }
+    drawClocks(el, s, shownTime);
+  }
+
+  function drawClocks(el, s, hm) { // frosted glass digits: the blurred copy of the scene seen through them
+    if (!hm) return;
+    var c = el.querySelector(".gclock");
+    c.innerHTML = '<span class="fill">' + hm + '</span><span class="sheen">' + hm + '</span><span class="rim">' + hm + "</span>";
+    var f = c.querySelector(".fill");
+    f.style.backgroundImage = "url(" + BG + "scene-" + s.id + "-glass.jpg)";
+    f.style.backgroundPosition = -(c.offsetLeft + f.offsetLeft) + "px " + -(c.offsetTop + f.offsetTop) + "px";
+  }
+
+  var toastT;
+  function show(i, announce) {
+    var prev = scene; scene = i; ready(i);
+    document.documentElement.className = "scene-" + SCENES[i].id + (prev >= 0 ? " live" : "");
+    els[i].classList.add("on");
+    if (prev >= 0 && prev !== i) {
+      els[prev].classList.remove("on");
+      setTimeout(function () { if (scene !== prev) els[prev].classList.remove("ready"); }, 2000);
+    }
+    try { localStorage.setItem("scene", SCENES[i].id); } catch (e) {}
+    if (announce) {
+      var t = $("toast"); t.textContent = "Szene: " + SCENES[i].name; t.style.opacity = 1;
+      clearTimeout(toastT); toastT = setTimeout(function () { t.style.opacity = 0; }, 2500);
+    }
+    tick();
+  }
+  window.nextScene = function () { show((scene + 1) % SCENES.length, true); };
+
+  // the sky: the live colour, with the photo's clouds laid in by their brightness ("luminosity")
+  function drawSky() {
+    if (scene < 0) return;
+    var el = els[scene], cv = el.querySelector(".skycv"), img = el.querySelector(".sbg");
+    var W = cv.width = Math.round(innerWidth / 2), H = cv.height = Math.round(innerHeight / 2), c = cv.getContext("2d");
+    var s = SCENES[scene], hy = s.horizon * H, col = skyAt(sun.alt), cl = wx.cloud;
+    var grey = mix([150, 158, 168], [30, 34, 44], sun.night);
+    var top = mix(col[0], grey, cl * 0.8), hor = mix(col[1], grey, cl * 0.8);
+    var g = c.createLinearGradient(0, 0, 0, hy);
+    g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(hor));
+    c.globalCompositeOperation = "source-over"; c.fillStyle = g; c.fillRect(0, 0, W, H);
+    if (img.complete && img.naturalWidth) {
+      c.globalCompositeOperation = "luminosity"; c.globalAlpha = 0.8 * (1 - 0.6 * sun.night); // by night the deep blue wins over the photo c.drawImage(img, 0, 0, W, H);
+      c.globalAlpha = 1; c.globalCompositeOperation = "multiply"; // the photo is a bright sunrise: dim it to the hour
+      var v = Math.round(255 * (0.3 + 0.7 * (1 - sun.night)) * (1 - 0.1 * cl));
+      c.fillStyle = "rgb(" + v + "," + v + "," + v + ")"; c.fillRect(0, 0, W, H);
+      c.globalCompositeOperation = "source-over";
+    }
+  }
+
+  // how much of the sun the scenery leaves visible: the cut-out's alpha at the sun's spot
+  var probe = document.createElement("canvas"); probe.width = 192; probe.height = 108;
+  function openSky(s, x, y) {
+    if (y < 0) return 1;
+    var fg = els[scene].querySelector(".fg");
+    if (!fg.complete || !fg.naturalWidth) return y < s.horizon ? 1 : 0;
+    try {
+      var p = probe.getContext("2d"); p.clearRect(0, 0, 192, 108); p.drawImage(fg, 0, 0, 192, 108);
+      var a = p.getImageData(Math.max(0, Math.min(191, Math.round(x * 192))), Math.max(0, Math.min(107, Math.round(y * 108))), 1, 1).data[3];
+      return 1 - a / 255;
+    } catch (e) { return y < s.horizon ? 1 : 0; }
+  }
+
+  var stars = []; for (var si = 0; si < 140; si++) stars.push([Math.random(), Math.random() * 0.5, 0.3 + Math.random() * 0.7]);
+  function drawSun() { // under the clock and the cut-out, so the peaks hide it; stars at night
+    var cv = els[scene].querySelector(".suncv"), W = cv.width = innerWidth, H = cv.height = innerHeight, c = cv.getContext("2d");
+    c.clearRect(0, 0, W, H);
+    var clear = 1 - wx.cloud * 0.95;
+    if (sun.night > 0.3 && clear > 0.1) for (var k = 0; k < stars.length; k++) {
+      c.fillStyle = "rgba(255,255,255," + (sun.night - 0.3) * 1.4 * clear * stars[k][2] + ")";
+      c.fillRect(stars[k][0] * W, stars[k][1] * H, stars[k][2] > 0.8 ? 2 : 1.5, stars[k][2] > 0.8 ? 2 : 1.5);
+    }
+    if (sun.alt < -2 || wx.cloud > 0.95) return;
+    var x = sun.x * W, y = sun.y * H, low = sun.low, haze = 1 - 0.85 * wx.cloud, r = H * (0.022 + 0.01 * low);
+    var core = low > 0.6 ? "255,214,160" : "255,250,238", mid = low > 0.6 ? "255,150,80" : "255,236,190";
+    var g = c.createRadialGradient(x, y, 0, x, y, H * (0.45 + 0.25 * low));
+    g.addColorStop(0, "rgba(" + mid + "," + 0.5 * haze + ")"); g.addColorStop(0.15, "rgba(" + mid + "," + 0.22 * haze + ")");
+    g.addColorStop(1, "rgba(" + mid + ",0)");
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    var d = c.createRadialGradient(x, y, 0, x, y, r * 1.6); // bright core, soft limb, no hard edge
+    d.addColorStop(0, "rgba(" + core + "," + haze + ")"); d.addColorStop(0.55, "rgba(" + core + "," + haze + ")");
+    d.addColorStop(0.7, "rgba(" + mid + "," + 0.6 * haze + ")"); d.addColorStop(1, "rgba(" + mid + ",0)");
+    c.fillStyle = d; c.save(); c.translate(x, y); c.scale(1, 1 - 0.12 * low); c.translate(-x, -y); // flattened near the horizon
+    c.fillRect(x - r * 2, y - r * 2, r * 4, r * 4); c.restore();
+  }
+
   var DAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
   var MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  var WORDS = [[0, "Klar"], [2, "Leicht bewölkt"], [3, "Bewölkt"], [48, "Nebel"], [57, "Nieselregen"],
+    [67, "Regen"], [77, "Schnee"], [82, "Regenschauer"], [86, "Schneeschauer"], [99, "Gewitter"]];
+  function word(c) { for (var i = 0; i < WORDS.length; i++) if (c <= WORDS[i][0]) return WORDS[i][1]; return ""; }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
 
-  var layers = [document.getElementById("s0"), document.getElementById("s1")], front = 0, shown = "";
   function tick() {
-    var d = now(), name = pickScene(sunElev(d), d.getHours(), wx);
-    if (name !== shown) { // crossfade: load into the hidden layer, then fade it in
-      var back = layers[1 - front], url = IMG + SCENES[name] + Q, img = new Image();
-      img.onload = function () {
-        back.style.backgroundImage = "url(" + url + ")";
-        back.className = "scene on"; layers[front].className = "scene"; front = 1 - front;
-      };
-      img.src = url; shown = name;
-    }
-    document.getElementById("clock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
-    document.getElementById("line").textContent = DAYS[d.getDay()] + ", " + d.getDate() + ". " + MONTHS[d.getMonth()] +
-      (wx.temp === null ? "" : "  ·  " + Math.round(wx.temp) + "°  " + word(wx.code));
+    if (scene < 0) return;
+    var d = now(), pos = solarPos(LAT, LON, d), code = q.test_wx ? Number(q.test_wx) : wx.code;
+    if (q.cloud) wx.cloud = Number(q.cloud) / 100;
+    var hm = pad(d.getHours()) + ":" + pad(d.getMinutes()), k;
+    if (hm !== shownTime) { shownTime = hm; for (k = 0; k < els.length; k++) if (els[k].classList.contains("ready")) drawClocks(els[k], SCENES[k], hm); }
+    var s = SCENES[scene], xy = sunXY(pos, s.horizon), L = landAt(pos.alt, wx.cloud);
+    sun.x = xy[0]; sun.y = xy[1]; sun.alt = pos.alt; sun.low = 1 - clamp(pos.alt / 15); sun.night = L.night;
+    sun.vis = pos.alt > -1 && sun.x > -0.05 && sun.x < 1.05 ? openSky(s, sun.x, sun.y) * (1 - 0.9 * wx.cloud) : 0;
+    drawSky(); drawSun();
+    // the land and the glass clock lit for the hour; blue night tint and warm evening tint on the land only
+    var f = "brightness(" + L.b.toFixed(3) + ") saturate(" + L.s.toFixed(3) + ") sepia(" + L.warm.toFixed(3) + ") hue-rotate(" + L.hue.toFixed(1) + "deg)";
+    var el = els[scene]; el.querySelector(".fg").style.filter = f;
+    var fill = el.querySelector(".gclock .fill"); if (fill) fill.style.filter = "brightness(" + (0.3 + 0.7 * L.b).toFixed(3) + ")";
+    var lt = el.querySelector(".landtint");
+    // night: blue; low sun: warm; high sun: a cool daylight tint that takes the photo's sunset glow off the land
+    lt.style.background = L.night > Math.max(L.golden, L.high) ? rgb([60, 84, 150], 0.5 * L.night) :
+      L.golden > L.high ? rgb([255, 176, 120], 0.3 * L.golden) : rgb([196, 214, 240], 0.45 * L.high);
+    // light from the sun's side, shadow on the far side; in the mountains' shadow when the sun is behind them
+    var up = clamp((pos.alt + 2) / 6) * (1 - 0.8 * wx.cloud), str = up * (0.45 + 0.55 * sun.low), left = sun.x < 0.5;
+    var behind = pos.alt > -2 && pos.alt < 15 && sun.vis < 0.2 && wx.cloud < 0.6 ? 0.15 : 0;
+    $("sunlight").style.background = "linear-gradient(" + (left ? "to right" : "to left") + ", rgba(255,196,130," + (0.16 * str * (1 - behind * 3)) +
+      ") 0%, rgba(255,196,130,0) 40%, rgba(12,18,34,0) 55%, rgba(12,18,34," + (0.28 * str) + ") 100%), rgba(10,14,28," + behind + ")";
+    $("date").innerHTML = DAYS[d.getDay()] + ", " + d.getDate() + ". " + MONTHS[d.getMonth()] +
+      (wx.temp === null && !q.test_wx ? "" : ' <span class="wx">· ' + (wx.temp === null ? "" : Math.round(wx.temp) + "° ") + word(code) + "</span>");
+    if (window.AmbientWeather) window.AmbientWeather.setWeather({ code: code }, pos);
+    planBirds(d);
   }
 
-  if (DEMO[q.w]) setWeather.apply(null, DEMO[q.w]); else { loadWeather(); setInterval(loadWeather, 15 * 60 * 1000); }
-  tick(); setInterval(tick, 10000);
+  function loadWeather() {
+    var x = new XMLHttpRequest();
+    x.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON + "&current=weather_code,temperature_2m,cloud_cover");
+    x.onload = function () {
+      try { var c = JSON.parse(x.responseText).current; wx.code = c.weather_code; wx.temp = c.temperature_2m; wx.cloud = c.cloud_cover / 100; tick(); } catch (e) {}
+    };
+    x.send(); // on failure the scene follows the sun only
+  }
 
-  // rain / snow / lightning on top of the photo
-  var cv = document.getElementById("fx"), ctx = cv.getContext("2d"), W, H, drops = [], i, flash = 0, last = 0;
-  for (i = 0; i < 180; i++) drops.push([Math.random(), Math.random(), 0.6 + Math.random() * 0.6]);
-  function resize() { W = cv.width = window.innerWidth; H = cv.height = window.innerHeight; }
+  // ---- birds: a small flock crosses the sky once or twice a day, by daylight only ----
+  var flock = null, birdTimes = [], birdDay = "";
+  function planBirds(d) {
+    var key = d.toDateString();
+    if (key !== birdDay) { // two random moments between 9:00 and 17:00, new each day
+      birdDay = key; birdTimes = [9 + Math.random() * 8, 9 + Math.random() * 8];
+      if (Math.random() < 0.4) birdTimes.pop(); // some days only once
+    }
+    var h = d.getHours() + d.getMinutes() / 60;
+    for (var i = 0; i < birdTimes.length; i++) if (h >= birdTimes[i] && h < birdTimes[i] + 0.1) { birdTimes.splice(i, 1); launch(); }
+    if (q.birds && !flock) launch();
+  }
+  function launch() {
+    if (flock || sun.night > 0.5 || wx.rain) return;
+    var dir = Math.random() < 0.5 ? 1 : -1, n = 3 + Math.floor(Math.random() * 5), y = 0.12 + Math.random() * 0.2, b = [];
+    for (var i = 0; i < n; i++) b.push([-i * 0.025 - Math.random() * 0.02, (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.018 + Math.random() * 0.01, Math.random() * 6]);
+    flock = { start: 0, dir: dir, y: y, birds: b, speed: 0.000045 + Math.random() * 0.00002, size: 0.006 + Math.random() * 0.004 };
+  }
+  function drawBirds(c, W, H, t) {
+    if (!flock) return;
+    if (!flock.start) flock.start = t;
+    var p = (t - flock.start) * flock.speed, done = true;
+    c.strokeStyle = sun.night > 0.2 ? "rgba(20,20,28,0.8)" : "rgba(25,25,30,0.75)"; c.lineWidth = Math.max(1.5, H * 0.0022); c.lineCap = "round";
+    for (var i = 0; i < flock.birds.length; i++) {
+      var bd = flock.birds[i], bx = p + bd[0];
+      if (bx < 1.15) done = false;
+      if (bx < -0.1 || bx > 1.1) continue;
+      var x = (flock.dir > 0 ? bx : 1 - bx) * W, y = (flock.y + bd[1] + Math.sin(t / 900 + bd[2]) * 0.006) * H, s = H * flock.size;
+      var flap = Math.sin(t / 140 + bd[2] * 3); // wings up and down
+      c.beginPath(); c.moveTo(x - s, y - s * 0.6 * flap); c.quadraticCurveTo(x - s * 0.4, y - s * 0.2 * flap, x, y);
+      c.quadraticCurveTo(x + s * 0.4, y - s * 0.2 * flap, x + s, y - s * 0.6 * flap); c.stroke();
+    }
+    if (done) flock = null;
+  }
+
+  // ---- drifting mist, cloud shadows, lens flare, birds: one canvas over the scenery ----
+  var fx = $("motion"), ctx = fx.getContext("2d"), last = 0, i;
+  var wisps = [], shadows = [];
+  for (i = 0; i < 7; i++) wisps.push([Math.random(), Math.random(), 0.25 + Math.random() * 0.35, (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 6) / 1e6]);
+  for (i = 0; i < 4; i++) shadows.push([Math.random(), Math.random(), 0.18 + Math.random() * 0.2]);
+  function resize() { fx.width = innerWidth; fx.height = innerHeight; }
   window.addEventListener("resize", resize); resize();
+
   function frame(t) {
     raf(frame);
-    if (t - last < 40) return; // ~25 fps, kind to TV CPUs
+    if (t - last < 50 || scene < 0) return; // ~20 fps, kind to TV CPUs
     last = t;
+    var s = SCENES[scene], W = fx.width, H = fx.height, k, day = 1 - sun.night;
     ctx.clearRect(0, 0, W, H);
-    if (wx.cloud > 0.5 && shown !== "grey") { ctx.fillStyle = "rgba(20,24,32," + (wx.cloud - 0.5) * 0.5 + ")"; ctx.fillRect(0, 0, W, H); }
-    if (wx.rain || wx.snow) {
-      ctx.strokeStyle = ctx.fillStyle = wx.snow ? "rgba(255,255,255,0.85)" : "rgba(210,220,240,0.35)";
-      ctx.lineWidth = 1.5; ctx.beginPath();
-      for (i = 0; i < drops.length * (wx.snow || wx.rain); i++) {
-        var p = drops[i], v = wx.snow ? 0.00006 : 0.0011;
-        var px = ((p[0] + (wx.snow ? Math.sin(t / 1500 + i) * 0.01 : t * v * 0.12)) % 1) * W, py = ((p[1] + t * v * p[2]) % 1) * H;
-        if (wx.snow) ctx.rect(px, py, 3, 3); else { ctx.moveTo(px, py); ctx.lineTo(px - 3, py + H * 0.035); }
-      }
-      if (wx.snow) ctx.fill(); else ctx.stroke();
+
+    var m0 = s.mist[0] * H, mh = (s.mist[1] - s.mist[0]) * H, mc = mix([70, 78, 96], [235, 238, 242], day); // soft fog banks drifting along the valleys
+    for (k = 0; k < wisps.length; k++) {
+      var p = wisps[k], px = ((p[0] + t * p[3]) % 1.6 + 1.6) % 1.6 - 0.3, py = m0 + p[1] * mh, rw = W * p[2], rh = mh * 0.35;
+      ctx.save(); ctx.translate(px * W, py); ctx.scale(1, rh / rw);
+      var mg = ctx.createRadialGradient(0, 0, 0, 0, 0, rw);
+      mg.addColorStop(0, rgb(mc, 0.14 + 0.1 * wx.cloud)); mg.addColorStop(1, rgb(mc, 0));
+      ctx.fillStyle = mg; ctx.fillRect(-rw, -rw, rw * 2, rw * 2); ctx.restore();
     }
-    if (wx.storm && Math.random() < 0.004) flash = 1;
-    if (flash > 0.05) { ctx.fillStyle = "rgba(255,255,255," + flash * 0.6 + ")"; ctx.fillRect(0, 0, W, H); flash *= 0.75; }
+
+    var cs = sun.alt > 5 ? clamp(wx.cloud * 3) * clamp((1 - wx.cloud) * 3) : 0; // broken clouds throw moving shadows
+    if (cs > 0.05) {
+      var g0 = s.horizon * H;
+      for (k = 0; k < shadows.length; k++) {
+        var sh = shadows[k], cx = (((sh[0] + t / 9e5) % 1.4) - 0.2) * W, cy = g0 + sh[1] * (H - g0), cr = W * sh[2];
+        ctx.save(); ctx.translate(cx, cy); ctx.scale(1, 0.35);
+        var cg = ctx.createRadialGradient(0, 0, 0, 0, 0, cr);
+        cg.addColorStop(0, "rgba(5,10,20," + 0.22 * cs + ")"); cg.addColorStop(1, "rgba(5,10,20,0)");
+        ctx.fillStyle = cg; ctx.fillRect(-cr, -cr, cr * 2, cr * 2); ctx.restore();
+      }
+    }
+
+    drawBirds(ctx, W, H, t);
+
+    if (sun.vis > 0.15) { // glare and lens flare, only when the sun is really in view
+      var sxp = sun.x * W, syp = sun.y * H, v = sun.vis, flick = 0.92 + 0.08 * Math.sin(t / 700);
+      var gl = ctx.createRadialGradient(sxp, syp, 0, sxp, syp, H * 0.2);
+      gl.addColorStop(0, "rgba(255,248,230," + 0.35 * v * flick + ")"); gl.addColorStop(1, "rgba(255,240,210,0)");
+      ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
+      var GH = [[0.45, 0.02, "255,220,170"], [0.75, 0.035, "180,220,255"], [1.25, 0.05, "255,200,150"], [1.55, 0.02, "200,255,220"]];
+      for (k = 0; k < GH.length; k++) {
+        var gx = sxp + (W / 2 - sxp) * 2 * GH[k][0] / 1.55, gy = syp + (H / 2 - syp) * 2 * GH[k][0] / 1.55, gr = H * GH[k][1];
+        var gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+        gg.addColorStop(0, "rgba(" + GH[k][2] + "," + 0.07 * v + ")"); gg.addColorStop(0.8, "rgba(" + GH[k][2] + "," + 0.05 * v + ")"); gg.addColorStop(1, "rgba(" + GH[k][2] + ",0)");
+        ctx.fillStyle = gg; ctx.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+      }
+    }
   }
-  var raf = window.requestAnimationFrame || function (f) { setTimeout(function () { f(Date.now()); }, 40); };
+  var raf = window.requestAnimationFrame || function (f) { setTimeout(function () { f(Date.now()); }, 50); };
+
+  build();
+  if (window.AmbientWeather) {
+    var a = window.AmbientWeather;
+    a.init($("weather-canvas"), $("ambient-lighting"));
+    a.setEnabled(true); a.setSunGradeEnabled(false); // the sky and land grading here replace couch-tv's tint
+  }
+  var start = 0, saved = null;
+  try { saved = localStorage.getItem("scene"); } catch (e) {}
+  for (i = 0; i < SCENES.length; i++) if (SCENES[i].id === (q.scene || saved)) start = i;
+  show(start, false);
+  setInterval(tick, 15000);
+  loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
   raf(frame);
+  window.addEventListener("resize", function () { drawClocks(els[scene], SCENES[scene], shownTime); tick(); });
+  setTimeout(function () { document.documentElement.className += " live"; }, 1000);
+  setTimeout(tick, 2500); // the cut-out may arrive after the first tick: work out the sun's visibility again
 })();
 </script>
 <script>
-// Deine Apps: { name, url, icon }. icon = Emoji oder 1-2 Buchstaben.
+// Deine Apps: { name, url, icon, tint }. icon = Name aus ICONS unten (oder 1-2 Buchstaben).
 var APPS = [
-  { name: "YouTube", url: "https://www.youtube.com/tv", icon: "Y" },
-  { name: "Smart Home (bald)", url: "#", icon: "S" }
+  { name: "YouTube", url: "https://www.youtube.com/tv", icon: "play", tint: "232,84,72" },
+  { name: "Claude", url: "https://claude.ai", icon: "chat", tint: "214,150,100" },
+  { name: "Entspannen", url: "entspannen.html", icon: "flame", tint: "240,140,60" },
+  { name: "Smart Home (bald)", url: "#", icon: "home", tint: "80,170,160" }
 ];
+// own simple line icons (24x24), drawn white on the tile
+var ICONS = {
+  play: '<circle cx="12" cy="12" r="9.5"/><path d="M10 8.3v7.4l6.2-3.7z" fill="#fff" stroke="none"/>',
+  chat: '<path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5v-3.5h-1a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11" r="1" fill="#fff" stroke="none"/><circle cx="12" cy="11" r="1" fill="#fff" stroke="none"/><circle cx="15.5" cy="11" r="1" fill="#fff" stroke="none"/>',
+  flame: '<path d="M12 2.8c.6 3.4 5.6 5.6 5.6 11.2a5.6 5.6 0 0 1-11.2 0c0-2.6 1.3-4.4 2.6-5.6.1 2.4 1.1 3.6 2.4 3.9-.5-3.6.1-6.6.6-9.5z"/><path d="M12 20.2a2.4 2.4 0 0 1-2.4-2.4c0-1.6 1.4-2.6 2.4-4 1 1.4 2.4 2.4 2.4 4a2.4 2.4 0 0 1-2.4 2.4z" fill="#fff" stroke="none" opacity="0.85"/>',
+  home: '<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.8 9.5V20h12.4V9.5"/><path d="M10 20v-5.2h4V20"/>'
+};
 
 var dock = document.getElementById("dock"), tiles = [], cur = 0;
 
@@ -162,7 +469,9 @@ APPS.forEach(function (app) {
   t.className = "tile";
   t.tabIndex = 0;
   t.innerHTML = '<div class="icon"></div><div class="name"></div>';
-  t.firstChild.textContent = app.icon;
+  if (ICONS[app.icon]) t.firstChild.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + ICONS[app.icon] + "</svg>";
+  else t.firstChild.textContent = app.icon;
+  if (app.tint) t.style.background = "linear-gradient(160deg, rgba(" + app.tint + ",0.55), rgba(" + app.tint + ",0.18))";
   t.lastChild.textContent = app.name;
   dock.appendChild(t);
   tiles.push(t);
@@ -188,6 +497,9 @@ document.addEventListener("keydown", function (e) {
   } else if (key === "Backspace" || key === "GoBack" || e.keyCode === 8 || e.keyCode === 461) {
     e.preventDefault();
     window.close(); // the launcher has one page, so Back always exits (VIDAA requires this)
+  } else if (key === "ArrowUp") {
+    e.preventDefault();
+    nextScene();
   } else if (/^Arrow/.test(key)) {
     e.preventDefault();
     focus(next(cur, key, tiles.length));
