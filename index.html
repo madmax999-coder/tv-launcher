@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launcher</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0b0c; color: #f2f2f2;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
+  #grid { display: flex; flex-wrap: wrap; justify-content: center; align-content: center;
+    height: 100%; padding: 4vh 4vw; box-sizing: border-box; }
+  .tile { width: 18vw; height: 18vw; margin: 1.5vw; border-radius: 1.2vw;
+    background: #1c1c1f; border: 0.4vw solid transparent; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    outline: none; }
+  .tile:focus { border-color: #ffffff; background: #2a2a2e; }
+  .icon { font-size: 6vw; line-height: 1; }
+  .name { font-size: 2.2vw; margin-top: 1.5vw; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script>
+// Deine Apps: { name, url, icon }. icon = Emoji oder 1-2 Buchstaben.
+var APPS = [
+  { name: "YouTube", url: "https://www.youtube.com/tv", icon: "Y" },
+  { name: "Smart Home (bald)", url: "#", icon: "S" }
+];
+
+var grid = document.getElementById("grid"), tiles = [], cur = 0;
+
+APPS.forEach(function (app) {
+  var t = document.createElement("div");
+  t.className = "tile";
+  t.tabIndex = 0;
+  t.innerHTML = '<div class="icon"></div><div class="name"></div>';
+  t.firstChild.textContent = app.icon;
+  t.lastChild.textContent = app.name;
+  grid.appendChild(t);
+  tiles.push(t);
+});
+
+function cols() { // tiles in the first row, so wrapping works at any TV resolution
+  for (var i = 1; i < tiles.length; i++) if (tiles[i].offsetTop !== tiles[0].offsetTop) return i;
+  return tiles.length;
+}
+
+function next(i, key, n, c) {
+  if (key === "ArrowLeft") return Math.max(i - 1, 0);
+  if (key === "ArrowRight") return Math.min(i + 1, n - 1);
+  if (key === "ArrowUp") return i - c >= 0 ? i - c : i;
+  if (key === "ArrowDown") return i + c < n ? i + c : (Math.floor(i / c) < Math.floor((n - 1) / c) ? n - 1 : i); // short last row: jump to its last tile
+  return i;
+}
+console.assert(next(0, "ArrowLeft", 5, 3) === 0 && next(1, "ArrowDown", 5, 3) === 4 &&
+  next(2, "ArrowDown", 5, 3) === 4 && next(3, "ArrowDown", 5, 3) === 3 && next(2, "ArrowDown", 5, 4) === 4 && next(4, "ArrowUp", 5, 3) === 1, "nav");
+
+function focus(i) { cur = i; tiles[cur].focus(); }
+
+var KEYS = { 37: "ArrowLeft", 38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown" };
+
+document.addEventListener("keydown", function (e) {
+  var key = e.key || KEYS[e.keyCode]; // old TV Chromium may only set keyCode
+  if (KEYS[e.keyCode]) key = KEYS[e.keyCode];
+  if (key === "Enter" || e.keyCode === 13) {
+    window.location.href = APPS[cur].url;
+  } else if (key === "Backspace" || key === "GoBack" || e.keyCode === 8 || e.keyCode === 461) {
+    e.preventDefault();
+    window.close(); // the launcher has one page, so Back always exits (VIDAA requires this)
+  } else if (/^Arrow/.test(key)) {
+    e.preventDefault();
+    focus(next(cur, key, tiles.length, cols()));
+  }
+});
+
+focus(0);
+</script>
+</body>
+</html>
